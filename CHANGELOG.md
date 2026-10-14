@@ -507,3 +507,23 @@ A fundação do projeto está definida nos seguintes arquivos:
 8. `CHANGELOG.md`
 
 Esses arquivos representam a base de contexto que deve ser consultada pelos agentes antes de tomar decisões relevantes no projeto.
+
+---
+
+## Estruturação Técnica Inicial (Fundação)
+
+### Decisões Implementadas
+
+1. **Next.js & TypeScript**:
+   - Inicializada a estrutura modular no Next.js (App Router) com TypeScript em modo estrito (`strict: true`) e alias `@/*`.
+   - Convenção nativa do Next.js 16 para interceptação de requisições (`proxy.ts`).
+2. **Design Tokens & Identidade**:
+   - Configurados tokens de cores (`#0F4C5C`, `#1677FF`, `#F7F8FA`, `#FFFFFF`, `#17191C`), bordas (`8px`, `12px`, `16px`) e fonte `Inter`.
+   - Criados componentes base de UI tátil (`Button`, `Card`, `Badge` com suporte nativo aos 4 status da operação).
+3. **Segurança & Supabase SSR**:
+   - Clientes especializados para navegador, servidor e rotas administrativas (`service_role`).
+   - Helpers de autorização e mitigação contra IDOR/BOLA (`assertTenantOwnership`, `assertUnitAccess`).
+   - Template seguro `.env.example` protegendo segredos e credenciais de provedores.
+4. **Domínios & Payment Layer Agnóstico**:
+   - Estruturada a organização por domínios em `src/features/` (`companies`, `units`, `employees`, `customers`, `vehicles`, `services`, `appointments`, `operations`, `finance`, `loyalty`, `inventory`, `payments`).
+   - Implementado o contrato agnóstico do `Payment Layer` (`IPaymentConnector`, `PaymentService`), encapsulando a orquestração do Mercado Pago para SmartPOS/Point sem acoplar a aplicação ao provedor.
