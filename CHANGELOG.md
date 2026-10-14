@@ -544,4 +544,24 @@ Esses arquivos representam a base de contexto que deve ser consultada pelos agen
    - Chave de idempotência única em `payment_transactions` para prevenção contra duplicidade.
    - Preços aplicados nos atendimentos são armazenados de forma imutável em `attendance_items`.
    - Seed data estruturado em `supabase/seed.sql` com a empresa piloto e as duas unidades iniciais de validação.
+
+---
+
+## Autenticação & Onboarding do SaaS (Opção 1)
+
+### Decisões Implementadas
+
+1. **Fluxo de Onboarding Multiempresa**:
+   - Criação da Server Action `signUpOwnerAction` que cria o usuário no Supabase Auth, cadastra a Empresa (`companies`), a 1ª Unidade (`units`), vincula o perfil (`profiles` com role `owner`) e configura a recompensa padrão de fidelidade de 8 carimbos.
+2. **Autenticação & Segurança (SECURITY.md)**:
+   - Server Action `signInAction` com validação Zod, mensagem neutra contra enumeração de contas e direcionamento automático baseado no papel do usuário (`/admin` para proprietário, `/operacao` para funcionário, `/cliente` para consumidor).
+   - Server Action `resetPasswordAction` para fluxo seguro de redefinição de senha.
+   - Server Action `signOutAction` para encerramento de sessão e redirecionamento.
+3. **Páginas e Telas (DESIGN.md)**:
+   - Layout de autenticação centralizado com selo de ambiente seguro.
+   - Tela de Login (`/login`) com feedback imediato via `useActionState`.
+   - Tela de Onboarding (`/cadastro`) para registro do proprietário e dados da empresa.
+   - Tela de Recuperação de Senha (`/recuperar-senha`).
+   - Telas iniciais autenticadas protegidas com verificação de sessão: `/admin` (Painel de Gestão), `/operacao` (Operação de Pátio com 4 status) e `/cliente` (Portal do Cliente com Cartão de 8 carimbos).
+
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { OperationStatusBadge } from "@/components/ui/badge";
@@ -21,12 +22,16 @@ export default function Home() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="compact">
-              Documentação
-            </Button>
-            <Button variant="petrol" size="compact">
-              Acesso Gestão
-            </Button>
+            <Link href="/login">
+              <Button variant="secondary" size="compact" type="button">
+                Fazer Login
+              </Button>
+            </Link>
+            <Link href="/cadastro">
+              <Button variant="petrol" size="compact" type="button">
+                Cadastrar Empresa
+              </Button>
+            </Link>
           </div>
         </header>
 
