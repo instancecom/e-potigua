@@ -526,4 +526,22 @@ Esses arquivos representam a base de contexto que deve ser consultada pelos agen
    - Template seguro `.env.example` protegendo segredos e credenciais de provedores.
 4. **Domínios & Payment Layer Agnóstico**:
    - Estruturada a organização por domínios em `src/features/` (`companies`, `units`, `employees`, `customers`, `vehicles`, `services`, `appointments`, `operations`, `finance`, `loyalty`, `inventory`, `payments`).
-   - Implementado o contrato agnóstico do `Payment Layer` (`IPaymentConnector`, `PaymentService`), encapsulando a orquestração do Mercado Pago para SmartPOS/Point sem acoplar a aplicação ao provedor.
+   - Implementado o contrato agnóstico do `Payment Layer` (`IPaymentConnector`, `PaymentService`), encapsulando a orquestração do Mercado Pago para SmartPOS/Point sem acoplar a aplicação ao provedor.
+
+---
+
+## Banco de Dados & RLS Multi-Tenant (Migration 000001)
+
+### Decisões Implementadas
+
+1. **Modelagem Relacional Integral (PostgreSQL / Supabase)**:
+   - Criada a migration `supabase/migrations/20261014000001_initial_schema.sql` cobrindo os 11 domínios de negócio: empresas, unidades, perfis de usuários, funcionários e transferências temporárias, clientes, veículos (6 categorias), serviços e preços por veículo, agendamentos, atendimentos nos 4 status operacionais (`na_fila`, `lavando`, `secando`, `finalizado`), financeiro, transações de pagamento (Payment Layer), fidelidade (8 carimbos e código de resgate) e estoque com solicitações.
+2. **Row Level Security (RLS) Mandatório**:
+   - RLS ativado em 100% das tabelas de negócio com negação por padrão.
+   - Criada a função segura `get_auth_company_id()` e políticas estritas de isolamento por `company_id`.
+   - Políticas refinadas para acesso operacional de funcionários por unidade e visibilidade dos clientes sobre seus próprios veículos, agendamentos e fidelidade.
+3. **Integridade de Dados & Histórico Imutável**:
+   - Chave de idempotência única em `payment_transactions` para prevenção contra duplicidade.
+   - Preços aplicados nos atendimentos são armazenados de forma imutável em `attendance_items`.
+   - Seed data estruturado em `supabase/seed.sql` com a empresa piloto e as duas unidades iniciais de validação.
+
