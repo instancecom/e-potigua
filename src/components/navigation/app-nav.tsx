@@ -27,6 +27,7 @@ const navItems = [
   { href: "/agenda", label: "Agenda", icon: Calendar },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/admin/servicos", label: "Serviços", icon: Briefcase },
+  { href: "/admin/equipe", label: "Equipe", icon: Users },
   { href: "/financeiro", label: "Financeiro", icon: Wallet },
   { href: "/fidelidade", label: "Fidelidade", icon: Award },
   { href: "/estoque", label: "Estoque", icon: Package },
