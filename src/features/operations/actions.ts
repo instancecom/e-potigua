@@ -1,4 +1,7 @@
+"use server";
+
 import { AttendanceOperationalStatus } from "./types";
+
 import { createClient } from "@/lib/supabase/server";
 
 export async function updateAttendanceStatus(
