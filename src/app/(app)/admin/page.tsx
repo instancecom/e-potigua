@@ -1,8 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building2, Store, Users, DollarSign, Plus, ArrowRight } from "lucide-react";
+import { OperationStatusBadge } from "@/components/ui/badge";
+import {
+  Plus,
+  ArrowUpRight,
+  ArrowDownRight,
+  ArrowRight,
+  AlertCircle,
+  PackageCheck,
+  Wrench,
+  Clock,
+} from "lucide-react";
 import Link from "next/link";
+import { formatCurrency } from "@/lib/utils";
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
@@ -10,7 +20,6 @@ export default async function AdminDashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Busca dados da empresa e contagem de unidades/funcionários
   const { data: profile } = await supabase
     .from("profiles")
     .select("company_id")
@@ -19,113 +28,227 @@ export default async function AdminDashboardPage() {
 
   const companyId = profile?.company_id;
 
-  const [{ count: unitsCount }, { count: employeesCount }, { count: servicesCount }] = await Promise.all([
-    supabase.from("units").select("*", { count: "exact", head: true }).eq("company_id", companyId || ""),
-    supabase.from("employees").select("*", { count: "exact", head: true }).eq("company_id", companyId || ""),
-    supabase.from("services").select("*", { count: "exact", head: true }).eq("company_id", companyId || ""),
+  // Consultas reais para o resumo vivo da operação (DESIGN.md Seção "Dashboard")
+  const today = new Date().toISOString().split("T")[0];
+
+  const [
+    { data: activeAttendances },
+    { data: financialData },
+    { data: replenishmentRequests },
+    { data: activeUnits },
+  ] = await Promise.all([
+    supabase
+      .from("attendances")
+      .select("id, status, total_price, vehicles(license_plate, model, type)")
+      .eq("company_id", companyId || "")
+      .neq("status", "finalizado"),
+    supabase
+      .from("financial_transactions")
+      .select("type, amount")
+      .eq("company_id", companyId || "")
+      .gte("occurred_at", `${today}T00:00:00Z`),
+    supabase
+      .from("inventory_replenishment_requests")
+      .select("id, item_name, status, requested_by_user_id")
+      .eq("company_id", companyId || "")
+      .eq("status", "pending"),
+    supabase
+      .from("units")
+      .select("id, name, active_washers_count")
+      .eq("company_id", companyId || "")
+      .eq("is_active", true),
   ]);
 
+  // Cálculos financeiros do dia (DESIGN.md Seção "Financeiro")
+  const totalIncome = (financialData || [])
+    .filter((tx) => tx.type === "income")
+    .reduce((acc, curr) => acc + Number(curr.amount), 0);
+
+  const totalExpense = (financialData || [])
+    .filter((tx) => tx.type === "expense")
+    .reduce((acc, curr) => acc + Number(curr.amount), 0);
+
+  // Contagem do Pátio Vivo
+  const queueCount = (activeAttendances || []).filter((a) => a.status === "na_fila").length;
+  const washingCount = (activeAttendances || []).filter((a) => a.status === "lavando").length;
+  const dryingCount = (activeAttendances || []).filter((a) => a.status === "secando").length;
+  const totalInYard = (activeAttendances || []).length;
+
+  const pendingRequestsCount = (replenishmentRequests || []).length;
+  const totalWashers = (activeUnits || []).reduce((acc, u) => acc + (u.active_washers_count || 0), 0);
+
   return (
-    <div className="space-y-8">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-text-main">
-            Painel de Gestão
-          </h1>
-          <p className="text-sm text-text-muted mt-1">
-            Visão consolidada da sua empresa, unidades e operação.
-          </p>
+    <div className="space-y-8 max-w-5xl mx-auto">
+      {/* 1. Header com Saldo do Dia (Estilo Banco Digital - DESIGN.md) & Ação Principal */}
+      <section className="bg-surface rounded-[16px] border border-border-subtle p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xs">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <span>Faturamento Hoje</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-status-success inline-block" />
+            <span className="text-[11px] font-normal lowercase">tempo real</span>
+          </div>
+
+          <div className="flex items-baseline gap-3">
+            <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-text-main">
+              {formatCurrency(totalIncome)}
+            </span>
+          </div>
+
+          {/* Entradas e Saídas discretas */}
+          <div className="flex items-center gap-4 pt-1 text-xs font-medium">
+            <span className="flex items-center gap-1 text-status-success">
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              Entradas: {formatCurrency(totalIncome)}
+            </span>
+            <span className="text-border-subtle">|</span>
+            <span className="flex items-center gap-1 text-status-error">
+              <ArrowDownRight className="w-3.5 h-3.5" />
+              Saídas: {formatCurrency(totalExpense)}
+            </span>
+          </div>
         </div>
+
+        {/* Ação Principal da Tela (DESIGN.md Seção "Ações") */}
         <div className="flex items-center gap-3">
-          <Link href="/operacao">
-            <Button variant="secondary" size="compact" type="button">
-              <span>Modo Operação</span>
-              <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+          <Link href="/operacao" className="w-full sm:w-auto">
+            <Button
+              variant="primary"
+              size="large"
+              className="w-full sm:w-auto text-sm font-semibold shadow-sm gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Atendimento</span>
             </Button>
           </Link>
-          <Button variant="primary" size="compact">
-            <Plus className="w-4 h-4 mr-1" />
-            <span>Novo Atendimento</span>
-          </Button>
         </div>
-      </div>
+      </section>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-text-muted">Unidades Físicas</CardTitle>
-            <Store className="w-4 h-4 text-brand-petrol" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-text-main">{unitsCount || 1}</div>
-            <p className="text-xs text-text-muted mt-1">Locais operacionais ativos</p>
-          </CardContent>
-        </Card>
+      {/* 2. Resumo Vivo da Operação no Pátio (DESIGN.md Seção "Dashboard") */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-brand-petrol" />
+            <h2 className="text-base font-bold text-text-main">Pátio Agora</h2>
+            <span className="text-xs font-semibold text-text-muted bg-surface px-2 py-0.5 rounded-[6px] border border-border-subtle">
+              {totalInYard} {totalInYard === 1 ? "veículo" : "veículos"}
+            </span>
+          </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-text-muted">Funcionários</CardTitle>
-            <Users className="w-4 h-4 text-brand-action" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-text-main">{employeesCount || 0}</div>
-            <p className="text-xs text-text-muted mt-1">Lavadores e atendentes</p>
-          </CardContent>
-        </Card>
+          <Link
+            href="/operacao"
+            className="text-xs font-semibold text-brand-action hover:underline inline-flex items-center gap-1"
+          >
+            Abrir Operação
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-text-muted">Serviços Ativos</CardTitle>
-            <Building2 className="w-4 h-4 text-status-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-text-main">{servicesCount || 0}</div>
-            <p className="text-xs text-text-muted mt-1">Tabela de preços cadastrada</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium text-text-muted">Faturamento Hoje</CardTitle>
-            <DollarSign className="w-4 h-4 text-status-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-text-main">R$ 0,00</div>
-            <p className="text-xs text-text-muted mt-1">0 atendimentos concluídos</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Access Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Primeiros Passos do Seu SaaS</CardTitle>
-          <CardDescription>
-            Sua empresa já está configurada com isolamento multiempresa e RLS ativo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-[12px] bg-background border border-border-subtle space-y-2">
-              <p className="text-xs font-bold text-brand-petrol uppercase tracking-wider">1. Serviços</p>
-              <h4 className="text-sm font-semibold text-text-main">Cadastrar Serviços & Preços</h4>
-              <p className="text-xs text-text-muted">Configure preços diferenciados para hatch, sedan, SUV e motos.</p>
+        {/* Status da Operação em Cartões Táteis */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Na Fila */}
+          <Link
+            href="/operacao"
+            className="p-5 rounded-[12px] bg-surface border border-border-subtle hover:border-status-warning/50 transition-colors group flex items-center justify-between"
+          >
+            <div className="space-y-1">
+              <OperationStatusBadge status="na_fila" />
+              <p className="text-xs text-text-muted">Aguardando lavador assumir</p>
             </div>
-            <div className="p-4 rounded-[12px] bg-background border border-border-subtle space-y-2">
-              <p className="text-xs font-bold text-brand-petrol uppercase tracking-wider">2. Equipe</p>
-              <h4 className="text-sm font-semibold text-text-main">Cadastrar Funcionários</h4>
-              <p className="text-xs text-text-muted">Adicione lavadores para cálculo de capacidade operacional.</p>
+            <span className="text-2xl font-bold text-text-main group-hover:text-status-warning transition-colors">
+              {queueCount}
+            </span>
+          </Link>
+
+          {/* Lavando */}
+          <Link
+            href="/operacao"
+            className="p-5 rounded-[12px] bg-surface border border-border-subtle hover:border-brand-action/50 transition-colors group flex items-center justify-between"
+          >
+            <div className="space-y-1">
+              <OperationStatusBadge status="lavando" />
+              <p className="text-xs text-text-muted">Veículos na rampa / box</p>
             </div>
-            <div className="p-4 rounded-[12px] bg-background border border-border-subtle space-y-2">
-              <p className="text-xs font-bold text-brand-petrol uppercase tracking-wider">3. Fidelidade</p>
-              <h4 className="text-sm font-semibold text-text-main">Configurar Recompensa</h4>
-              <p className="text-xs text-text-muted">Defina o prêmio que os clientes ganham ao acumular 8 carimbos.</p>
+            <span className="text-2xl font-bold text-text-main group-hover:text-brand-action transition-colors">
+              {washingCount}
+            </span>
+          </Link>
+
+          {/* Secando */}
+          <Link
+            href="/operacao"
+            className="p-5 rounded-[12px] bg-surface border border-border-subtle hover:border-brand-petrol/50 transition-colors group flex items-center justify-between"
+          >
+            <div className="space-y-1">
+              <OperationStatusBadge status="secando" />
+              <p className="text-xs text-text-muted">Acabamento e aspiração</p>
+            </div>
+            <span className="text-2xl font-bold text-text-main group-hover:text-brand-petrol transition-colors">
+              {dryingCount}
+            </span>
+          </Link>
+        </div>
+      </section>
+
+      {/* 3. Alertas e Atenção Operacional (DESIGN.md: "Existem problemas que precisam de atenção?") */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Solicitações de Estoque */}
+        <div className="p-5 rounded-[12px] bg-surface border border-border-subtle flex items-start gap-3">
+          <div className="w-8 h-8 rounded-[8px] bg-background border border-border-subtle flex items-center justify-center shrink-0 mt-0.5">
+            <PackageCheck className="w-4 h-4 text-text-muted" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text-main">Insumos & Reposição</h3>
+              {pendingRequestsCount > 0 ? (
+                <span className="text-[11px] font-bold text-status-warning bg-status-warning/10 px-2 py-0.5 rounded-[6px]">
+                  {pendingRequestsCount} pendente(s)
+                </span>
+              ) : (
+                <span className="text-[11px] font-medium text-status-success">Estoque em dia</span>
+              )}
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              {pendingRequestsCount > 0
+                ? "Há solicitações de produtos enviadas pelos lavadores aguardando liberação."
+                : "Nenhuma solicitação de reposição urgente da equipe."}
+            </p>
+            <div className="pt-2">
+              <Link
+                href="/estoque"
+                className="text-xs font-semibold text-brand-petrol hover:underline"
+              >
+                Gerenciar Estoque &rarr;
+              </Link>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Capacidade Operacional da Equipe */}
+        <div className="p-5 rounded-[12px] bg-surface border border-border-subtle flex items-start gap-3">
+          <div className="w-8 h-8 rounded-[8px] bg-background border border-border-subtle flex items-center justify-center shrink-0 mt-0.5">
+            <Clock className="w-4 h-4 text-text-muted" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text-main">Capacidade da Unidade</h3>
+              <span className="text-[11px] font-bold text-brand-petrol bg-brand-petrol/10 px-2 py-0.5 rounded-[6px]">
+                {totalWashers} lavador(es) ativo(s)
+              </span>
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              A capacidade de agendamentos e atendimento simultâneo considera a equipe em turno.
+            </p>
+            <div className="pt-2">
+              <Link
+                href="/configuracoes"
+                className="text-xs font-semibold text-brand-petrol hover:underline"
+              >
+                Gerenciar Equipe & Unidades &rarr;
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
