@@ -9,15 +9,7 @@ import { redirect } from "next/navigation";
 
 export default function NovoAtendimentoAdminPage() {
   const [state, formAction, isPending] = useActionState(createAttendanceAction, null);
-  const [vehicles, setVehicles] = useState<any[]>([]);
-  const [services, setServices] = useState<any[]>([]);
-  const [units, setUnits] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Carrega dados iniciais
-  // TODO: mover para Server Component e passar como props
-  // Por enquanto mock para validar fluxo
-  setLoading(false);
+  const loading = false;
 
   return (
     <div className="max-w-lg mx-auto p-4 pb-20">
