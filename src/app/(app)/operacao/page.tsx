@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AttendanceCard } from "@/components/operation/attendance-card";
 import { redirect } from "next/navigation";
+import { Attendance } from "@/features/operations/types";
 
 export default async function OperacaoPage() {
   const supabase = await createClient();
@@ -28,18 +29,20 @@ export default async function OperacaoPage() {
     .neq("status", "finalizado")
     .order("started_at", { ascending: true });
 
+  const typedAttendances = (attendances || []) as unknown as Attendance[];
+
   return (
     <div className="p-4 max-w-lg mx-auto">
       <h1 className="text-xl font-bold mb-4">Operação - Unidade {employee.active_unit_id}</h1>
       <div className="grid gap-4">
-        {attendances?.map((att) => (
+        {typedAttendances.map((att) => (
           <AttendanceCard 
             key={att.id} 
-            attendance={att as any} 
+            attendance={att} 
             unitId={employee.active_unit_id} 
           />
         ))}
-        {(!attendances || attendances.length === 0) && (
+        {typedAttendances.length === 0 && (
           <p className="text-gray-500 text-center py-10">Nenhum veículo em operação.</p>
         )}
       </div>

@@ -4,7 +4,7 @@ import { Attendance } from "@/features/operations/types";
 import { updateAttendanceStatus } from "@/features/operations/actions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { OperationStatusBadge } from "@/components/ui/badge";
 import { useState } from "react";
 
 interface AttendanceCardProps {
@@ -26,18 +26,11 @@ export function AttendanceCard({ attendance, unitId }: AttendanceCardProps) {
     }
   };
 
-  const statusColors: Record<Attendance["status"], "default" | "secondary" | "accent" | "destructive"> = {
-    na_fila: "default",
-    lavando: "accent",
-    secando: "secondary",
-    finalizado: "default",
-  };
-
   return (
     <Card className="p-4 flex flex-col gap-3">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-lg">{attendance.vehicleId}</h3>
-        <Badge variant={statusColors[attendance.status]}>{attendance.status.replace("_", " ")}</Badge>
+        <OperationStatusBadge status={attendance.status} />
       </div>
       
       <div className="text-sm text-gray-500">
@@ -45,9 +38,9 @@ export function AttendanceCard({ attendance, unitId }: AttendanceCardProps) {
       </div>
 
       <div className="flex gap-2 mt-2">
-        {attendance.status !== "lavando" && (
+        {attendance.status !== "lavando" && attendance.status !== "finalizado" && (
           <Button 
-            size="sm" 
+            size="compact" 
             disabled={loading} 
             onClick={() => handleStatusChange("lavando")}
           >
@@ -56,7 +49,7 @@ export function AttendanceCard({ attendance, unitId }: AttendanceCardProps) {
         )}
         {attendance.status === "lavando" && (
           <Button 
-            size="sm" 
+            size="compact" 
             variant="secondary"
             disabled={loading} 
             onClick={() => handleStatusChange("secando")}
@@ -66,8 +59,8 @@ export function AttendanceCard({ attendance, unitId }: AttendanceCardProps) {
         )}
         {attendance.status === "secando" && (
           <Button 
-            size="sm" 
-            variant="default"
+            size="compact" 
+            variant="primary"
             disabled={loading} 
             onClick={() => handleStatusChange("finalizado")}
           >
