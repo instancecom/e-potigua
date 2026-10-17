@@ -26,7 +26,17 @@ export default function NovoAtendimentoAdminPage() {
             <form action={formAction} className="space-y-4">
               <Input name="licensePlate" label="Placa do Veículo" placeholder="ABC-1234" required />
               <Input name="vehicleModel" label="Modelo" placeholder="Fiat Uno" />
-              <Input name="vehicleType" label="Tipo" placeholder="hatch / sedan / suv / pickup / truck / motorcycle" />
+                <div className="space-y-1">
+                  <label htmlFor="vehicleType" className="block text-xs font-semibold uppercase tracking-wider text-text-muted">Tipo de Veículo</label>
+                  <select name="vehicleType" id="vehicleType" className="w-full p-3 rounded-[12px] border border-border-subtle bg-background" required>
+                    <option value="hatch">Hatch</option>
+                    <option value="sedan">Sedan</option>
+                    <option value="suv">SUV</option>
+                    <option value="pickup">Caminhonete/Pickup</option>
+                    <option value="truck">Caminhão</option>
+                    <option value="motorcycle">Moto</option>
+                  </select>
+                </div>
               
               {state?.error && <p className="text-status-error text-sm">{state.error}</p>}
               {state?.message && <p className="text-status-success text-sm">{state.message}</p>}
