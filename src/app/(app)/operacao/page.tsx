@@ -2,37 +2,39 @@ import { createClient } from "@/lib/supabase/server";
 import { AttendanceCard } from "@/components/operation/attendance-card";
 import { redirect } from "next/navigation";
 import { Attendance } from "@/features/operations/types";
+import { startAttendanceFromAppointment } from "@/features/appointments/actions-flow";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Play } from "lucide-react";
 
 export default async function OperacaoPage() {
   const supabase = await createClient();
 
-  // Verifica sessão e unidade ativa do funcionário
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
     .select("role, company_id")
     .eq("id", user.id)
     .single();
 
-  if (profileError || !profile || (profile.role !== "employee" && profile.role !== "owner")) {
-    console.log("Profile error or invalid role:", profileError, profile);
+  if (!profile || (profile.role !== "employee" && profile.role !== "owner")) {
     redirect("/login");
   }
 
-  // Busca a unidade ativa (se funcionário)
+  // Busca unidade ativa
   const { data: employee } = await supabase
     .from("employees")
     .select("active_unit_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  // Se dono ou funcionário, tenta pegar unidade
   let unitId = employee?.active_unit_id;
 
-  // Se dono, busca a primeira unidade da empresa se ele não tiver uma ativa
-  if (!unitId && profile.role === "owner") {
+  if (!unitId && profile.company_id) {
     const { data: firstUnit } = await supabase
       .from("units")
       .select("id")
@@ -43,12 +45,24 @@ export default async function OperacaoPage() {
     unitId = firstUnit?.id;
   }
 
-  if (!unitId) {
-    console.log("Nenhuma unidade encontrada para o usuário", user.id);
-    redirect("/admin");
-  }
+  if (!unitId) redirect("/admin");
 
-  // Carrega atendimentos
+  // 1. Carrega agendamentos pendentes (scheduled / confirmed) para esta unidade
+  const { data: scheduledAppointments } = await supabase
+    .from("appointments")
+    .select(`
+      id,
+      scheduled_at,
+      total_price,
+      status,
+      vehicle:vehicles(license_plate, model),
+      items:appointment_items(service_name)
+    `)
+    .eq("unit_id", unitId)
+    .in("status", ["scheduled", "confirmed"])
+    .order("scheduled_at", { ascending: true });
+
+  // 2. Carrega atendimentos em andamento no pátio
   const { data: attendances } = await supabase
     .from("attendances")
     .select(`
@@ -62,20 +76,67 @@ export default async function OperacaoPage() {
   const typedAttendances = (attendances || []) as unknown as Attendance[];
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
-      <h1 className="text-xl font-bold mb-4">Operação - Unidade {unitId}</h1>
-      <div className="grid gap-4">
-        {typedAttendances.map((att) => (
-          <AttendanceCard 
-            key={att.id} 
-            attendance={att} 
-            unitId={unitId} 
-          />
-        ))}
-        {typedAttendances.length === 0 && (
-          <p className="text-gray-500 text-center py-10">Nenhum veículo em operação.</p>
-        )}
+    <div className="p-4 max-w-xl mx-auto space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-xl font-bold text-brand-petrol">Operação do Pátio</h1>
       </div>
+
+      {/* Seção 1: Agendamentos Aguardando Chegada (Check-in rápido) */}
+      {scheduledAppointments && scheduledAppointments.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            Chegadas Esperadas ({scheduledAppointments.length})
+          </h2>
+          <div className="grid gap-3">
+            {scheduledAppointments.map((app: any) => {
+              const vehicle = Array.isArray(app.vehicle) ? app.vehicle[0] : app.vehicle;
+              return (
+                <Card key={app.id} className="border-border-subtle bg-surface">
+                  <CardContent className="p-3.5 flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-bold text-text-main">
+                        {format(new Date(app.scheduled_at), "HH:mm", { locale: ptBR })} • {vehicle?.license_plate} ({vehicle?.model})
+                      </p>
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        {app.items?.map((item: any) => item.service_name).join(", ")}
+                      </p>
+                    </div>
+                    <form action={async () => {
+                      "use server";
+                      await startAttendanceFromAppointment(app.id);
+                    }}>
+                      <Button size="compact" variant="primary">
+                        <Play className="w-3 h-3 mr-1" /> Check-in
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Seção 2: Pátio em Andamento */}
+      <section className="space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+          Veículos no Pátio ({typedAttendances.length})
+        </h2>
+        <div className="grid gap-4">
+          {typedAttendances.map((att) => (
+            <AttendanceCard 
+              key={att.id} 
+              attendance={att} 
+              unitId={unitId} 
+            />
+          ))}
+          {typedAttendances.length === 0 && (
+            <Card className="p-8 text-center border-border-subtle">
+              <p className="text-text-muted text-sm">Nenhum veículo em andamento no pátio no momento.</p>
+            </Card>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
