@@ -70,13 +70,16 @@ export async function createAppointmentAction(
 
   // 3. Insere os itens do agendamento
   await supabase.from("appointment_items").insert(
-    services.map(s => ({
-      appointment_id: appointment.id,
-      service_id: s.service_id,
-      service_name: s.services?.name,
-      applied_price: s.price,
-      duration_minutes: s.estimated_duration_minutes
-    }))
+    services.map(s => {
+      const serviceDetail = Array.isArray(s.services) ? s.services[0] : s.services;
+      return {
+        appointment_id: appointment.id,
+        service_id: s.service_id,
+        service_name: serviceDetail?.name,
+        applied_price: s.price,
+        duration_minutes: s.estimated_duration_minutes
+      };
+    })
   );
 
   revalidatePath("/agenda");
