@@ -8,10 +8,11 @@ export interface FinanceActionResult {
   error?: string;
 }
 
+import { addStampAction } from "../loyalty/actions";
+
 /**
  * Registra o pagamento de um atendimento.
- * Atualiza status do atendimento, registra a transação financeira e (opcionalmente) carimbo de fidelidade.
- * (DATABASE.md Seção 16, 21, 23)
+ * Atualiza status do atendimento, registra a transação financeira e adiciona carimbo de fidelidade.
  */
 export async function finalizePaymentAction(
   attendanceId: string,
@@ -23,7 +24,16 @@ export async function finalizePaymentAction(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Não autorizado." };
 
-  // 1. Atualiza atendimento como pago
+  // 1. Busca os detalhes do atendimento (para fidelidade)
+  const { data: attendance, error: attFetchError } = await supabase
+    .from("attendances")
+    .select("company_id, customer_id")
+    .eq("id", attendanceId)
+    .single();
+
+  if (attFetchError || !attendance) return { success: false, error: "Atendimento não encontrado." };
+
+  // 2. Atualiza atendimento como pago
   const { error: attError } = await supabase
     .from("attendances")
     .update({ 
@@ -32,13 +42,13 @@ export async function finalizePaymentAction(
     })
     .eq("id", attendanceId);
 
-  if (attError) return { success: false, error: "Erro ao registrar pagamento no atendimento." };
+  if (attError) return { success: false, error: "Erro ao registrar pagamento." };
 
-  // 2. Registra na transação financeira da empresa
+  // 3. Registra na transação financeira
   const { error: finError } = await supabase
     .from("financial_transactions")
     .insert({
-      company_id: (await supabase.from("attendances").select("company_id").eq("id", attendanceId).single()).data?.company_id,
+      company_id: attendance.company_id,
       attendance_id: attendanceId,
       type: "income",
       amount: amount,
@@ -50,8 +60,14 @@ export async function finalizePaymentAction(
 
   if (finError) return { success: false, error: "Erro ao registrar transação financeira." };
 
+  // 4. Se o cliente tiver conta (customer_id), tenta adicionar carimbo de fidelidade
+  if (attendance.customer_id) {
+    await addStampAction(attendance.customer_id);
+  }
+
   revalidatePath("/operacao");
   revalidatePath("/financeiro");
+  revalidatePath("/admin/fidelidade");
   return { success: true };
 }
 
