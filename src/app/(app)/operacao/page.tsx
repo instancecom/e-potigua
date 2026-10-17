@@ -21,16 +21,18 @@ export default async function OperacaoPage() {
     redirect("/login");
   }
 
-  // Busca a unidade ativa (se funcionário) ou a primeira unidade (se dono)
-  const { data: unitData } = await supabase
+  // Busca a unidade ativa (se funcionário)
+  const { data: employee } = await supabase
     .from("employees")
     .select("active_unit_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  let unitId = unitData?.active_unit_id;
+  // Se dono ou funcionário, tenta pegar unidade
+  let unitId = employee?.active_unit_id;
 
-  if (!unitId && profile.company_id) {
+  // Se dono, busca a primeira unidade da empresa se ele não tiver uma ativa
+  if (!unitId && profile.role === "owner") {
     const { data: firstUnit } = await supabase
       .from("units")
       .select("id")
@@ -41,7 +43,10 @@ export default async function OperacaoPage() {
     unitId = firstUnit?.id;
   }
 
-  if (!unitId) redirect("/admin");
+  if (!unitId) {
+    console.log("Nenhuma unidade encontrada para o usuário", user.id);
+    redirect("/admin");
+  }
 
   // Carrega atendimentos
   const { data: attendances } = await supabase
