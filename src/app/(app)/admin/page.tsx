@@ -110,7 +110,7 @@ export default async function AdminDashboardPage() {
 
         {/* Ação Principal da Tela (DESIGN.md Seção "Ações") */}
         <div className="flex items-center gap-3">
-          <Link href="/operacao" className="w-full sm:w-auto">
+          <Link href="/admin/atendimento/novo" className="w-full sm:w-auto">
             <Button
               variant="primary"
               size="large"
