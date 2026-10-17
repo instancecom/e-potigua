@@ -1,112 +1,77 @@
-"use client";
-
-import { useActionState, useState } from "react";
-import { createServiceAction } from "@/features/services/actions";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
-const VEHICLE_TYPES = [
-  { id: "hatch", label: "Hatch" },
-  { id: "sedan", label: "Sedan" },
-  { id: "suv", label: "SUV" },
-  { id: "pickup", label: "Caminhonete/Pickup" },
-  { id: "truck", label: "Caminhão" },
-  { id: "motorcycle", label: "Moto" },
-];
+export default async function ServicesListPage() {
+  const supabase = await createClient();
 
-export default function ServicesPage() {
-  const [state, formAction, isPending] = useActionState(createServiceAction, null);
-  
-  // Estado para controlar os preços e durações de cada categoria
-  const [prices, setPrices] = useState<Record<string, { price: string; duration: string }>>(
-    VEHICLE_TYPES.reduce((acc, type) => ({
-      ...acc,
-      [type.id]: { price: "", duration: "" }
-    }), {})
-  );
-
-  const handlePriceChange = (typeId: string, field: "price" | "duration", value: string) => {
-    setPrices(prev => ({
-      ...prev,
-      [typeId]: { ...prev[typeId], [field]: value }
-    }));
-  };
-
-  // Prepara o JSON para o campo hidden que a Action espera
-  const pricesPayload = JSON.stringify(
-    Object.entries(prices)
-      .filter(([_, data]) => data.price !== "" && data.duration !== "")
-      .map(([typeId, data]) => ({
-        vehicleType: typeId,
-        price: Number(data.price),
-        estimatedDurationMinutes: Number(data.duration)
-      }))
-  );
+  // Busca os serviços da empresa atual junto com seus preços
+  const { data: services } = await supabase
+    .from("services")
+    .select(`
+      id,
+      name,
+      description,
+      is_active,
+      prices:service_prices(vehicle_type, price, estimated_duration_minutes)
+    `)
+    .order("created_at", { ascending: false });
 
   return (
-    <div className="max-w-4xl mx-auto p-4 pb-20">
-      <Card className="border-border-subtle shadow-xs">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold text-brand-petrol">Novo Serviço</CardTitle>
-          <p className="text-sm text-text-muted">Configure o nome e os valores por categoria de veículo.</p>
-        </CardHeader>
-        <CardContent>
-          <form action={formAction} className="space-y-8">
-            {/* Dados Básicos */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input name="name" label="Nome do Serviço" placeholder="Ex: Lavagem Completa" required />
-              <Input name="description" label="Descrição (Opcional)" placeholder="Ex: Lavagem externa + interna" />
-            </div>
+    <div className="max-w-4xl mx-auto p-4 pb-20 space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-brand-petrol">Serviços</h1>
+          <p className="text-sm text-text-muted">Gerencie os serviços oferecidos e seus valores por veículo.</p>
+        </div>
+        <Link href="/admin/servicos/novo">
+          <Button variant="primary">Novo Serviço</Button>
+        </Link>
+      </div>
 
-            {/* Tabela de Preços */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">Preços por Categoria</h3>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {VEHICLE_TYPES.map((type) => (
-                  <Card key={type.id} className="p-4 bg-surface border-border-subtle">
-                    <div className="text-sm font-bold mb-3 text-text-main">{type.label}</div>
-                    <div className="grid gap-2">
-                      <Input 
-                        type="number" 
-                        placeholder="Preço (R$)" 
-                        value={prices[type.id].price}
-                        onChange={(e) => handlePriceChange(type.id, "price", e.target.value)}
-                      />
-                      <Input 
-                        type="number" 
-                        placeholder="Tempo (min)" 
-                        value={prices[type.id].duration}
-                        onChange={(e) => handlePriceChange(type.id, "duration", e.target.value)}
-                      />
+      <div className="grid gap-4">
+        {services?.map((service) => (
+          <Card key={service.id} className="border-border-subtle shadow-xs">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-base font-semibold">{service.name}</CardTitle>
+              <Badge variant={service.is_active ? "success" : "error"}>
+                {service.is_active ? "Ativo" : "Inativo"}
+              </Badge>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {service.description && (
+                <p className="text-sm text-text-muted">{service.description}</p>
+              )}
+
+              <div className="border-t border-border-subtle pt-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-text-muted block mb-2">
+                  Preços e Durações
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {service.prices?.map((p: any, idx: number) => (
+                    <div key={idx} className="bg-background p-2.5 rounded-[8px] border border-border-subtle">
+                      <div className="text-xs font-medium uppercase text-text-muted">{p.vehicle_type}</div>
+                      <div className="text-sm font-bold text-brand-petrol">R$ {Number(p.price).toFixed(2)}</div>
+                      <div className="text-xs text-text-muted">{p.estimated_duration_minutes} min</div>
                     </div>
-                  </Card>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            </CardContent>
+          </Card>
+        ))}
 
-            {/* Campo Hidden com o payload estruturado */}
-            <input type="hidden" name="prices" value={pricesPayload} />
-            
-            {state?.error && (
-              <div className="p-3 rounded-[8px] bg-status-error/10 text-status-error text-xs font-medium border border-status-error/20">
-                {state.error}
-              </div>
-            )}
-            {state?.message && (
-              <div className="p-3 rounded-[8px] bg-status-success/10 text-status-success text-xs font-medium border border-status-success/20">
-                {state.message}
-              </div>
-            )}
-
-            <div className="pt-4 border-t border-border-subtle flex justify-end">
-              <Button type="submit" variant="primary" className="w-full sm:w-auto" isLoading={isPending}>
-                Salvar Serviço
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        {(!services || services.length === 0) && (
+          <Card className="p-12 text-center border-border-subtle">
+            <p className="text-sm text-text-muted mb-4">Nenhum serviço cadastrado ainda.</p>
+            <Link href="/admin/servicos/novo">
+              <Button variant="primary">Cadastrar Primeiro Serviço</Button>
+            </Link>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
