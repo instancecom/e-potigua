@@ -10,13 +10,14 @@ export default async function OperacaoPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("role, company_id")
     .eq("id", user.id)
     .single();
 
-  if (!profile || (profile.role !== "employee" && profile.role !== "owner")) {
+  if (profileError || !profile || (profile.role !== "employee" && profile.role !== "owner")) {
+    console.log("Profile error or invalid role:", profileError, profile);
     redirect("/login");
   }
 
@@ -25,15 +26,16 @@ export default async function OperacaoPage() {
     .from("employees")
     .select("active_unit_id")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   let unitId = unitData?.active_unit_id;
 
-  if (!unitId) {
+  if (!unitId && profile.company_id) {
     const { data: firstUnit } = await supabase
       .from("units")
       .select("id")
       .eq("company_id", profile.company_id)
+      .eq("is_active", true)
       .limit(1)
       .single();
     unitId = firstUnit?.id;
