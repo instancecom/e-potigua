@@ -20,30 +20,33 @@ export default async function FidelidadePage() {
       <h1 className="text-xl sm:text-2xl font-bold text-brand-petrol">Fidelidade</h1>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {cards?.map((card) => (
-          <Card key={card.id} className="border-border-subtle shadow-xs">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">{card.customer?.name || "Cliente"}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between items-center">
-                <div className="flex gap-1">
-                  {[...Array(8)].map((_, i) => (
-                    <div 
-                      key={i} 
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border ${i < card.current_stamps ? 'bg-brand-action text-white border-brand-action' : 'bg-background border-border-subtle text-text-muted'}`}
-                    >
-                      {i + 1}
-                    </div>
-                  ))}
+        {cards?.map((card: any) => {
+          const customer = Array.isArray(card.customer) ? card.customer[0] : card.customer;
+          return (
+            <Card key={card.id} className="border-border-subtle shadow-xs">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">{customer?.name || "Cliente"}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-center">
+                  <div className="flex gap-1">
+                    {[...Array(8)].map((_, i) => (
+                      <div 
+                        key={i} 
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border ${i < card.current_stamps ? 'bg-brand-action text-white border-brand-action' : 'bg-background border-border-subtle text-text-muted'}`}
+                      >
+                        {i + 1}
+                      </div>
+                    ))}
+                  </div>
+                  <Badge variant={card.current_stamps === 8 ? "action" : "default"}>
+                    {card.current_stamps} / 8
+                  </Badge>
                 </div>
-                <Badge variant={card.current_stamps === 8 ? "action" : "default"}>
-                  {card.current_stamps} / 8
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
